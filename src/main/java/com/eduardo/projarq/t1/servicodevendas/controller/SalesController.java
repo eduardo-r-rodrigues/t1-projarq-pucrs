@@ -4,6 +4,10 @@ import com.eduardo.projarq.t1.servicodevendas.model.*;
 import com.eduardo.projarq.t1.servicodevendas.application.dto.OrderRequestDTO;
 import com.eduardo.projarq.t1.servicodevendas.application.dto.OrderItemRequestDTO;
 import com.eduardo.projarq.t1.servicodevendas.service.SalesService;
+import com.eduardo.projarq.t1.servicodevendas.strategy.CalculateDiscountStrategy;
+import com.eduardo.projarq.t1.servicodevendas.strategy.CalculateFederalTaxStrategy;
+import com.eduardo.projarq.t1.servicodevendas.strategy.CalculateStateTaxStrategy;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,7 +23,6 @@ public class SalesController {
     @Autowired
     private SalesService salesService;
 
-    // Product endpoints
     @GetMapping("/products")
     public ResponseEntity<List<Product>> getAllProducts() {
         return ResponseEntity.ok(salesService.getAllProducts());
@@ -68,7 +71,6 @@ public class SalesController {
         return ResponseEntity.ok(stock);
     }
 
-    // Order endpoints
     @GetMapping("/orders")
     public ResponseEntity<List<Order>> getOrdersByPeriod(@RequestParam String start, @RequestParam String end) {
         LocalDateTime startDate = LocalDateTime.parse(start);
@@ -110,9 +112,9 @@ public class SalesController {
             items.add(new OrderItem(product.getCode(), itemReq.quantity, product.getUnitPrice(), totalPrice));
             subtotal += totalPrice;
         }
-        double discount = calculateDiscount(items);
-        double stateTax = calculateStateTax(request.state, items, subtotal - discount);
-        double federalTax = calculateFederalTax(subtotal - discount);
+        double discount = new CalculateDiscountStrategy().calculate(items);
+        double stateTax = new CalculateStateTaxStrategy(salesService).calculate(request.state, items, subtotal - discount);
+        double federalTax = new CalculateFederalTaxStrategy().calculate(subtotal - discount);
         double total = subtotal - discount + stateTax + federalTax;
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime expiresAt = now.plusDays(21);
@@ -154,51 +156,11 @@ public class SalesController {
         return ResponseEntity.ok(salesService.createOrder(order));
     }
 
-    // Helper methods
     private boolean isSupportedCountry(String country) {
         return "Brasil".equalsIgnoreCase(country) || "Brazil".equalsIgnoreCase(country);
     }
 
     private boolean isSupportedState(String state) {
         return Arrays.asList("RS", "SP", "PE").contains(state.toUpperCase());
-    }
-
-    private double calculateDiscount(List<OrderItem> items) {
-        int totalItems = items.stream().mapToInt(OrderItem::getQuantity).sum();
-        double subtotal = items.stream().mapToDouble(OrderItem::getTotalPrice).sum();
-        if (totalItems > 10) {
-            return subtotal * 0.10;
-        } else if (totalItems > 3) {
-            return subtotal * 0.05;
-        }
-        return 0.0;
-    }
-
-    private double calculateStateTax(String state, List<OrderItem> items, double base) {
-        state = state.toUpperCase();
-        switch (state) {
-            case "RS":
-                if (base <= 100.0) return 0.0;
-                return (base - 100.0) * 0.10;
-            case "SP":
-                return base * 0.12;
-            case "PE":
-                double total = 0.0;
-                for (OrderItem item : items) {
-                    Product product = salesService.getProduct(item.getProductCode());
-                    if (product != null && product.isEssential()) {
-                        total += item.getTotalPrice() * 0.05;
-                    } else {
-                        total += item.getTotalPrice() * 0.15;
-                    }
-                }
-                return total;
-            default:
-                return 0.0;
-        }
-    }
-
-    private double calculateFederalTax(double base) {
-        return base * 0.15;
     }
 }

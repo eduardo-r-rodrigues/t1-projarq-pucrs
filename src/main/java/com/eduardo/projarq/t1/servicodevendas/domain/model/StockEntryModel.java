@@ -1,6 +1,5 @@
 package com.eduardo.projarq.t1.servicodevendas.domain.model;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import lombok.*;
 
