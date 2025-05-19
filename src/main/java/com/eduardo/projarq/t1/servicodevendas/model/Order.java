@@ -24,4 +24,11 @@ public class Order {
     private String status;
     private LocalDateTime createdAt;
     private LocalDateTime expiresAt;
+
+    public List<OrderItem> getItems() { return items; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+    public LocalDateTime getExpiresAt() { return expiresAt; }
+    public String getId() { return id; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
 }

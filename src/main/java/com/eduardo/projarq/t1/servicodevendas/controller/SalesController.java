@@ -1,38 +1,108 @@
 package com.eduardo.projarq.t1.servicodevendas.controller;
 
-import com.eduardo.projarq.t1.servicodevendas.adapters.repository.InMemoryOrderRepository;
-import com.eduardo.projarq.t1.servicodevendas.adapters.repository.InMemoryProductRepository;
 import com.eduardo.projarq.t1.servicodevendas.model.*;
 import com.eduardo.projarq.t1.servicodevendas.application.dto.OrderRequestDTO;
 import com.eduardo.projarq.t1.servicodevendas.application.dto.OrderItemRequestDTO;
+import com.eduardo.projarq.t1.servicodevendas.service.SalesService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/sales")
 public class SalesController {
-    private final InMemoryProductRepository productRepo = new InMemoryProductRepository();
-    private final InMemoryOrderRepository orderRepo = new InMemoryOrderRepository();
 
+    @Autowired
+    private SalesService salesService;
+
+    // Product endpoints
     @GetMapping("/products")
-    public List<Product> getProducts() {
-        return productRepo.findAll();
+    public ResponseEntity<List<Product>> getAllProducts() {
+        return ResponseEntity.ok(salesService.getAllProducts());
+    }
+
+    @GetMapping("/products/{code}")
+    public ResponseEntity<Product> getProduct(@PathVariable String code) {
+        return ResponseEntity.ok(salesService.getProduct(code));
+    }
+
+    @PostMapping("/products")
+    public ResponseEntity<Product> createProduct(@RequestBody Product product) {
+        return ResponseEntity.ok(salesService.createProduct(product));
+    }
+
+    @PostMapping("/products/{code}/restock")
+    public ResponseEntity<Product> restockProduct(@PathVariable String code, @RequestParam int quantity) {
+        Product product = salesService.getProduct(code);
+        if (product == null) {
+            throw new IllegalArgumentException("Product not found");
+        }
+        int newStock = Math.min(product.getStockQuantity() + quantity, product.getMaxStockQuantity());
+        product.setAvailableQuantity(product.getAvailableQuantity() + (newStock - product.getStockQuantity()));
+        product.setStockQuantity(newStock);
+        return ResponseEntity.ok(salesService.createProduct(product));
+    }
+
+    @GetMapping("/products/stock")
+    public ResponseEntity<Map<String, Integer>> getStockForAllProducts() {
+        Map<String, Integer> stock = new HashMap<>();
+        for (Product p : salesService.getAllProducts()) {
+            stock.put(p.getCode(), p.getAvailableQuantity());
+        }
+        return ResponseEntity.ok(stock);
+    }
+
+    @PostMapping("/products/stock")
+    public ResponseEntity<Map<String, Integer>> getStockForProducts(@RequestBody List<String> codes) {
+        Map<String, Integer> stock = new HashMap<>();
+        for (String code : codes) {
+            Product product = salesService.getProduct(code);
+            if (product != null) {
+                stock.put(code, product.getAvailableQuantity());
+            }
+        }
+        return ResponseEntity.ok(stock);
+    }
+
+    // Order endpoints
+    @GetMapping("/orders")
+    public ResponseEntity<List<Order>> getOrdersByPeriod(@RequestParam String start, @RequestParam String end) {
+        LocalDateTime startDate = LocalDateTime.parse(start);
+        LocalDateTime endDate = LocalDateTime.parse(end);
+        List<Order> allOrders = salesService.getAllOrders();
+        List<Order> filteredOrders = allOrders.stream()
+                .filter(o -> o.getCreatedAt().isAfter(startDate) && o.getCreatedAt().isBefore(endDate))
+                .filter(o -> "CONFIRMED".equals(o.getStatus()))
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(filteredOrders);
+    }
+
+    @GetMapping("/orders/{id}")
+    public ResponseEntity<Order> getOrder(@PathVariable String id) {
+        return ResponseEntity.ok(salesService.getOrder(id));
+    }
+
+    @PostMapping("/orders")
+    public ResponseEntity<Order> createOrder(@RequestBody Order order) {
+        return ResponseEntity.ok(salesService.createOrder(order));
     }
 
     @PostMapping("/orders/quote")
-    public Order quoteOrder(@RequestBody OrderRequestDTO request) {
+    public ResponseEntity<Order> quoteOrder(@RequestBody OrderRequestDTO request) {
         if (!isSupportedCountry(request.country) || !isSupportedState(request.state)) {
             throw new IllegalArgumentException("Country or state not supported");
         }
         List<OrderItem> items = new ArrayList<>();
         double subtotal = 0;
         for (OrderItemRequestDTO itemReq : request.items) {
-            Product product = productRepo.findByCode(itemReq.productCode)
-                    .orElseThrow(() -> new IllegalArgumentException("Product not found: " + itemReq.productCode));
+            Product product = salesService.getProduct(itemReq.productCode);
+            if (product == null) {
+                throw new IllegalArgumentException("Product not found: " + itemReq.productCode);
+            }
             if (itemReq.quantity > product.getAvailableQuantity()) {
                 throw new IllegalArgumentException("Insufficient stock for product: " + itemReq.productCode);
             }
@@ -48,84 +118,51 @@ public class SalesController {
         LocalDateTime expiresAt = now.plusDays(21);
         Order order = new Order(UUID.randomUUID().toString(), request.customerId, request.state, request.country, items,
                 subtotal, discount, stateTax, federalTax, total, "PENDING", now, expiresAt);
-        orderRepo.save(order);
-        return order;
+        return ResponseEntity.ok(salesService.createOrder(order));
     }
 
     @PostMapping("/orders/{orderId}/confirm")
-    public Order confirmOrder(@PathVariable String orderId) {
-        Order order = orderRepo.findById(orderId)
-                .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+    public ResponseEntity<Order> confirmOrder(@PathVariable String orderId) {
+        Order order = salesService.getOrder(orderId);
+        if (order == null) {
+            throw new IllegalArgumentException("Order not found");
+        }
         if (!order.getStatus().equals("PENDING")) {
             throw new IllegalStateException("Order is not pending");
         }
         if (order.getExpiresAt().isBefore(LocalDateTime.now())) {
             order.setStatus("EXPIRED");
-            orderRepo.save(order);
+            salesService.createOrder(order);
             throw new IllegalStateException("Order expired");
         }
         for (OrderItem item : order.getItems()) {
-            Product product = productRepo.findByCode(item.getProductCode())
-                    .orElseThrow(() -> new IllegalArgumentException("Product not found: " + item.getProductCode()));
+            Product product = salesService.getProduct(item.getProductCode());
+            if (product == null) {
+                throw new IllegalArgumentException("Product not found: " + item.getProductCode());
+            }
             if (item.getQuantity() > product.getAvailableQuantity()) {
                 throw new IllegalArgumentException("Insufficient stock for product: " + item.getProductCode());
             }
         }
         for (OrderItem item : order.getItems()) {
-            Product product = productRepo.findByCode(item.getProductCode()).get();
+            Product product = salesService.getProduct(item.getProductCode());
             product.setStockQuantity(product.getStockQuantity() - item.getQuantity());
             product.setAvailableQuantity(product.getAvailableQuantity() - item.getQuantity());
-            productRepo.save(product);
+            salesService.createProduct(product);
         }
         order.setStatus("CONFIRMED");
-        orderRepo.save(order);
-        return order;
+        return ResponseEntity.ok(salesService.createOrder(order));
     }
 
-    @PostMapping("/products/{code}/restock")
-    public Product restockProduct(@PathVariable String code, @RequestParam int quantity) {
-        Product product = productRepo.findByCode(code)
-                .orElseThrow(() -> new IllegalArgumentException("Product not found"));
-        int newStock = Math.min(product.getStockQuantity() + quantity, product.getMaxStockQuantity());
-        product.setAvailableQuantity(product.getAvailableQuantity() + (newStock - product.getStockQuantity()));
-        product.setStockQuantity(newStock);
-        productRepo.save(product);
-        return product;
-    }
-
-    @GetMapping("/products/stock")
-    public Map<String, Integer> getStockForAllProducts() {
-        Map<String, Integer> stock = new HashMap<>();
-        for (Product p : productRepo.findAll()) {
-            stock.put(p.getCode(), p.getAvailableQuantity());
-        }
-        return stock;
-    }
-
-    @PostMapping("/products/stock")
-    public Map<String, Integer> getStockForProducts(@RequestBody List<String> codes) {
-        Map<String, Integer> stock = new HashMap<>();
-        for (String code : codes) {
-            productRepo.findByCode(code).ifPresent(p -> stock.put(code, p.getAvailableQuantity()));
-        }
-        return stock;
-    }
-
-    @GetMapping("/orders")
-    public List<Order> getOrdersByPeriod(@RequestParam String start, @RequestParam String end) {
-        LocalDateTime startDate = LocalDateTime.parse(start);
-        LocalDateTime endDate = LocalDateTime.parse(end);
-        return orderRepo.findByPeriod(startDate, endDate).stream()
-                .filter(o -> "CONFIRMED".equals(o.getStatus()))
-                .collect(Collectors.toList());
-    }
-
+    // Helper methods
     private boolean isSupportedCountry(String country) {
         return "Brasil".equalsIgnoreCase(country) || "Brazil".equalsIgnoreCase(country);
     }
+
     private boolean isSupportedState(String state) {
         return Arrays.asList("RS", "SP", "PE").contains(state.toUpperCase());
     }
+
     private double calculateDiscount(List<OrderItem> items) {
         int totalItems = items.stream().mapToInt(OrderItem::getQuantity).sum();
         double subtotal = items.stream().mapToDouble(OrderItem::getTotalPrice).sum();
@@ -136,6 +173,7 @@ public class SalesController {
         }
         return 0.0;
     }
+
     private double calculateStateTax(String state, List<OrderItem> items, double base) {
         state = state.toUpperCase();
         switch (state) {
@@ -147,7 +185,7 @@ public class SalesController {
             case "PE":
                 double total = 0.0;
                 for (OrderItem item : items) {
-                    Product product = productRepo.findByCode(item.getProductCode()).orElse(null);
+                    Product product = salesService.getProduct(item.getProductCode());
                     if (product != null && product.isEssential()) {
                         total += item.getTotalPrice() * 0.05;
                     } else {
@@ -159,6 +197,7 @@ public class SalesController {
                 return 0.0;
         }
     }
+
     private double calculateFederalTax(double base) {
         return base * 0.15;
     }
