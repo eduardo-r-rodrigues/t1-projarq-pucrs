@@ -1,0 +1,120 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: servicodevendas-postgres
+    environment:
+      POSTGRES_DB: servicodevendas
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - servicodevendas-network
+
+  # RabbitMQ Message Queue
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: servicodevendas-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - servicodevendas-network
+
+  # Eureka Service Discovery
+  eureka-server:
+    image: openjdk:21-jdk-slim
+    container_name: servicodevendas-eureka
+    working_dir: /app
+    volumes:
+      - ./eureka-server:/app
+    ports:
+      - "8761:8761"
+    command: java -jar eureka-server.jar
+    networks:
+      - servicodevendas-network
+    depends_on:
+      - postgres
+      - rabbitmq
+
+  # API Gateway
+  api-gateway:
+    image: openjdk:21-jdk-slim
+    container_name: servicodevendas-gateway
+    working_dir: /app
+    volumes:
+      - ./api-gateway:/app
+    ports:
+      - "8080:8080"
+    command: java -jar api-gateway.jar
+    networks:
+      - servicodevendas-network
+    depends_on:
+      - eureka-server
+
+  # Main Sales Service (Monolith)
+  sales-service:
+    image: openjdk:21-jdk-slim
+    container_name: servicodevendas-sales
+    working_dir: /app
+    volumes:
+      - ./sales-service:/app
+    ports:
+      - "8081:8081"
+    command: java -jar sales-service.jar
+    networks:
+      - servicodevendas-network
+    depends_on:
+      - postgres
+      - eureka-server
+      - rabbitmq
+
+  # Tax Service (Multiple instances)
+  tax-service:
+    image: openjdk:21-jdk-slim
+    container_name: servicodevendas-tax
+    working_dir: /app
+    volumes:
+      - ./tax-service:/app
+    ports:
+      - "8082"
+    command: java -jar tax-service.jar
+    networks:
+      - servicodevendas-network
+    depends_on:
+      - eureka-server
+
+  # Sales Registry Service
+  sales-registry-service:
+    image: openjdk:21-jdk-slim
+    container_name: servicodevendas-registry
+    working_dir: /app
+    volumes:
+      - ./sales-registry-service:/app
+    ports:
+      - "8083:8083"
+    command: java -jar sales-registry-service.jar
+    networks:
+      - servicodevendas-network
+    depends_on:
+      - postgres
+      - eureka-server
+      - rabbitmq
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
+
+networks:
+  servicodevendas-network:
+    driver: bridge 
