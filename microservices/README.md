@@ -1,133 +1,160 @@
 # Microservices Architecture - Serviço de Vendas
 
-Este projeto implementa uma arquitetura de microserviços para o sistema de vendas, seguindo os requisitos do trabalho de Projeto e Arquitetura de Software.
+Este projeto implementa uma arquitetura de microserviços para o sistema de vendas com um frontend React moderno.
 
-## Arquitetura dos Microserviços
+## Componentes
 
-### Componentes da Arquitetura
+### Backend (Microserviços)
+1. Eureka Server (Porta 8761)
+2. API Gateway (Porta 8080)
+3. Sales Service (Porta 8081)
+4. Tax Service (Porta 8082)
+5. Sales Registry Service (Porta 8083)
+6. Neon Database
+7. RabbitMQ (Porta 5672)
 
-1. **Eureka Server** (Porta 8761) - Service Discovery
-2. **API Gateway** (Porta 8080) - Roteamento e Gateway
-3. **Sales Service** (Porta 8081) - Serviço principal (monolito)
-4. **Tax Service** (Porta 8082) - Cálculo de impostos (múltiplas instâncias)
-5. **Sales Registry Service** (Porta 8083) - Registro de vendas para relatórios fiscais
-6. **PostgreSQL** (Porta 5432) - Banco de dados
-7. **RabbitMQ** (Porta 5672) - Message Queue
+### Frontend
+8. React Frontend (Porta 3000)
 
-### Comunicação entre Serviços
+## Configuração
 
-- **Síncrona**: Sales Service ↔ Tax Service (via Feign Client)
-- **Assíncrona**: Sales Service → Sales Registry Service (via RabbitMQ)
+Configure as variáveis de ambiente no arquivo `.env`:
 
-## Como Executar
-
-### 1. Iniciar a Infraestrutura
-```bash
-cd microservices
-docker-compose up -d postgres rabbitmq
+```env
+NEON_HOST=your-neon-host
+NEON_DATABASE=your-database-name
+NEON_USERNAME=your-username
+NEON_PASSWORD=your-password
+NEON_SSL_MODE=require
+DATABASE_URL=jdbc:postgresql://your-neon-host/your-database-name?sslmode=require
 ```
 
-### 2. Iniciar o Eureka Server
+## Execução
+
+### 1. Backend (Microserviços)
+
 ```bash
-cd microservices/eureka-server
-./mvnw spring-boot:run
+# Iniciar RabbitMQ
+docker-compose up -d rabbitmq
+
+# Iniciar microserviços (em terminais separados)
+cd eureka-server
+.\mvnw.cmd spring-boot:run
+
+cd sales-service
+.\mvnw.cmd spring-boot:run
+
+cd tax-service
+.\mvnw.cmd spring-boot:run
+
+cd sales-registry-service
+.\mvnw.cmd spring-boot:run
+
+cd api-gateway
+.\mvnw.cmd spring-boot:run
 ```
 
-### 3. Iniciar os Microserviços
+### 2. Frontend (React)
+
 ```bash
-# Sales Service (Monolito)
-cd microservices/sales-service
-./mvnw spring-boot:run
+# Navegar para o diretório do frontend
+cd frontend
 
-# Tax Service (Múltiplas instâncias)
-cd microservices/tax-service
-./mvnw spring-boot:run
+# Instalar dependências
+npm install
 
-# Sales Registry Service
-cd microservices/sales-registry-service
-./mvnw spring-boot:run
-
-# API Gateway
-cd microservices/api-gateway
-./mvnw spring-boot:run
+# Executar em modo de desenvolvimento
+npm start
 ```
 
-### 4. Executar com Docker Compose (Todos os serviços)
-```bash
-cd microservices
-docker-compose up --scale tax-service=3
-```
+### 3. Acessar a Aplicação
 
-## Endpoints da API
+- **Frontend React**: http://localhost:3000
+- **API Gateway**: http://localhost:8080
+- **Eureka Dashboard**: http://localhost:8761
+- **RabbitMQ Management**: http://localhost:15672 (admin/admin)
+
+## Funcionalidades do Frontend
+
+### 📊 Dashboard
+- Visão geral do sistema
+- Status dos microserviços em tempo real
+- Ações rápidas para navegação
+
+### 📦 Gerenciamento de Produtos
+- Listagem, criação e edição de produtos
+- Controle de estoque
+- Status visual do estoque
+
+### 🛒 Gerenciamento de Pedidos
+- Criação de novos pedidos
+- Seleção de produtos e quantidades
+- Confirmação de pedidos
+- Histórico de pedidos
+
+### 🧮 Calculadora de Impostos
+- Cálculo de impostos por estado (RS, SP, PE)
+- Visualização detalhada dos cálculos
+- Informações sobre regras de impostos
+
+### 📈 Relatórios
+- Geração de relatórios mensais
+- Vendas por estado
+- Produtos mais vendidos
+- Vendas diárias
+
+### 🔍 Monitoramento
+- Status em tempo real de todos os microserviços
+- Informações sobre a arquitetura
+- Links diretos para dashboards
+
+## Endpoints
 
 ### Via API Gateway (http://localhost:8080)
 
-#### Produtos (Sales Service)
-- `GET /api/products` - Listar produtos
-- `GET /api/products/{code}` - Buscar produto
-- `POST /api/products` - Criar produto
-- `POST /api/products/{code}/restock` - Adicionar estoque
+#### Produtos
+- `GET /api/products`
+- `GET /api/products/{code}`
+- `POST /api/products`
+- `POST /api/products/{code}/restock`
 
-#### Pedidos (Sales Service)
-- `GET /api/orders` - Listar pedidos por período
-- `GET /api/orders/{id}` - Buscar pedido
-- `POST /api/orders` - Criar pedido
-- `POST /api/orders/{id}/confirm` - Confirmar pedido
+#### Pedidos
+- `GET /api/orders`
+- `GET /api/orders/{id}`
+- `POST /api/orders`
+- `POST /api/orders/{id}/confirm`
 
-#### Impostos (Tax Service)
-- `POST /api/tax/calculate` - Calcular impostos
-- `GET /api/tax/health` - Health check
+#### Impostos
+- `POST /api/tax/calculate`
+- `GET /api/tax/health`
 
-#### Relatórios (Sales Registry Service)
-- `GET /api/sales-registry/report/{year}/{month}` - Relatório mensal
-- `GET /api/sales-registry/health` - Health check
+#### Relatórios
+- `GET /api/sales-registry/report/{year}/{month}`
+- `GET /api/sales-registry/health`
+
+## Tecnologias Utilizadas
+
+### Backend
+- Spring Boot
+- Spring Cloud (Eureka, Gateway)
+- Spring Data JPA
+- RabbitMQ
+- PostgreSQL (Neon)
+
+### Frontend
+- React 18
+- React Router DOM
+- React Hook Form
+- Axios
+- React Hot Toast
+- Lucide React
+- Tailwind CSS
 
 ## Monitoramento
 
-### Eureka Dashboard
-- URL: http://localhost:8761
-- Visualizar serviços registrados
-
-### RabbitMQ Management
-- URL: http://localhost:15672
-- Usuário: admin
-- Senha: admin
-
-## Fluxo de Funcionamento
-
-1. **Criação de Pedido**:
-   - Cliente faz requisição via API Gateway
-   - Gateway roteia para Sales Service
-   - Sales Service valida produtos e estoque
-   - Sales Service chama Tax Service (síncrono) para calcular impostos
-   - Pedido é criado com status PENDING
-
-2. **Confirmação de Pedido**:
-   - Cliente confirma pedido via API Gateway
-   - Sales Service reserva estoque
-   - Sales Service envia mensagem para Sales Registry Service (assíncrono)
-   - Sales Registry Service salva registro para relatórios fiscais
-
-3. **Relatórios Fiscais**:
-   - Receita Federal consulta Sales Registry Service
-   - Service retorna totais de vendas e impostos por mês
-
-## Características Técnicas
-
-### Tax Service (Múltiplas Instâncias)
-- Comunicação síncrona via Feign Client
-- Load balancing automático via Eureka
-- Instâncias escaláveis via Docker Compose
-
-### Sales Registry Service (Fila)
-- Comunicação assíncrona via RabbitMQ
-- Fila com nome aleatório para evitar conflitos
-- Persistência em PostgreSQL para relatórios
-
-### API Gateway
-- Roteamento baseado em path
-- Load balancing automático
-- Service discovery integrado
+- **Frontend**: http://localhost:3000
+- **Eureka Dashboard**: http://localhost:8761
+- **RabbitMQ Management**: http://localhost:15672 (admin/admin)
 
 ## Estados Suportados
 
@@ -135,39 +162,30 @@ docker-compose up --scale tax-service=3
 - **SP**: Imposto de 12% sobre o total
 - **PE**: Imposto diferenciado por produto (5% para essenciais, 15% para outros)
 
-## Exemplo de Uso
+## Scripts Úteis
 
-### Criar um pedido:
+### Testar API
 ```bash
-curl -X POST http://localhost:8080/api/orders \
-  -H "Content-Type: application/json" \
-  -d '{
-    "customerId": "CUST001",
-    "state": "SP",
-    "country": "Brasil",
-    "items": [
-      {
-        "productCode": "PROD001",
-        "quantity": 2
-      }
-    ]
-  }'
+./test-api.sh
 ```
 
-### Confirmar pedido:
+### Configurar Frontend
 ```bash
-curl -X POST http://localhost:8080/api/orders/{orderId}/confirm
+cd frontend
+./setup.sh
 ```
 
-### Consultar relatório mensal:
-```bash
-curl http://localhost:8080/api/sales-registry/report/2024/1
+## Estrutura do Projeto
+
 ```
-
-## Próximos Passos
-
-1. Implementar circuit breakers (Hystrix/Resilience4j)
-2. Adicionar logging centralizado
-3. Implementar métricas e monitoramento
-4. Adicionar autenticação e autorização
-5. Implementar testes de integração 
+microservices/
+├── api-gateway/           # API Gateway
+├── eureka-server/         # Service Discovery
+├── sales-service/         # Gerenciamento de produtos e pedidos
+├── tax-service/           # Cálculo de impostos
+├── sales-registry-service/ # Relatórios de vendas
+├── frontend/              # React Frontend
+├── docker-compose.yml     # Configuração do RabbitMQ
+├── test-api.sh           # Script de teste da API
+└── README.md             # Este arquivo
+``` 

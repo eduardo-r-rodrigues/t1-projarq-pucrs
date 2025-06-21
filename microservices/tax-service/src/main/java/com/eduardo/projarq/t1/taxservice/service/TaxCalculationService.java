@@ -2,6 +2,7 @@ package com.eduardo.projarq.t1.taxservice.service;
 
 import com.eduardo.projarq.t1.taxservice.dto.TaxCalculationRequest;
 import com.eduardo.projarq.t1.taxservice.dto.TaxCalculationResponse;
+import com.eduardo.projarq.t1.taxservice.dto.OrderItemDto;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -12,11 +13,9 @@ public class TaxCalculationService {
     public TaxCalculationResponse calculateTaxes(TaxCalculationRequest request) {
         TaxCalculationResponse response = new TaxCalculationResponse();
         
-        // Calculate discount
         double discount = calculateDiscount(request.getItems());
         response.setDiscount(discount);
-        
-        // Calculate taxes
+
         double baseForTaxes = request.getBaseAmount() - discount;
         double stateTax = calculateStateTax(request.getState(), request.getItems(), baseForTaxes);
         double federalTax = calculateFederalTax(baseForTaxes);
@@ -61,9 +60,9 @@ public class TaxCalculationService {
                 .sum();
         
         if (totalQuantity >= 10) {
-            return 0.10; // 10% discount
+            return 0.10;
         } else if (totalQuantity >= 5) {
-            return 0.05; // 5% discount
+            return 0.05;
         }
         return 0.0;
     }
