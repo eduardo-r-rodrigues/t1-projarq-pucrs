@@ -54,9 +54,9 @@ public class OrderService {
                 .sum();
         
         TaxCalculationRequestDTO taxRequest = new TaxCalculationRequestDTO();
-        taxRequest.setState(request.getState());
-        taxRequest.setItems(orderItems);
         taxRequest.setBaseAmount(baseAmount);
+        taxRequest.setItems(orderItems);
+        taxRequest.setState(request.getState() != null ? request.getState() : "SP");
         
         TaxCalculationResponseDTO taxResponse = taxServiceClient.calculateTaxes(taxRequest);
         
@@ -73,7 +73,6 @@ public class OrderService {
         List<OrderItem> items = orderItems.stream()
                 .map(item -> {
                     OrderItem orderItem = new OrderItem();
-                    orderItem.setOrder(order);
                     orderItem.setProductCode(item.getProductCode());
                     orderItem.setQuantity(item.getQuantity());
                     orderItem.setUnitPrice(item.getUnitPrice());
