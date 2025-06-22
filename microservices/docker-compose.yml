@@ -23,11 +23,12 @@ services:
       - ./eureka-server:/app
     ports:
       - "8761:8761"
-    command: java -jar eureka-server.jar
+    command: java -jar target/eureka-server-0.0.1-SNAPSHOT.jar
     networks:
       - servicodevendas-network
     depends_on:
       - rabbitmq
+    restart: on-failure
 
   api-gateway:
     image: openjdk:21-jdk-slim
@@ -37,11 +38,12 @@ services:
       - ./api-gateway:/app
     ports:
       - "8080:8080"
-    command: java -jar api-gateway.jar
+    command: java -jar target/api-gateway-0.0.1-SNAPSHOT.jar
     networks:
       - servicodevendas-network
     depends_on:
       - eureka-server
+    restart: on-failure
 
   sales-service:
     image: openjdk:21-jdk-slim
@@ -51,7 +53,7 @@ services:
       - ./sales-service:/app
     ports:
       - "8081:8081"
-    command: java -jar sales-service.jar
+    command: java -jar target/sales-service-0.0.1-SNAPSHOT.jar
     networks:
       - servicodevendas-network
     env_file:
@@ -59,6 +61,7 @@ services:
     depends_on:
       - eureka-server
       - rabbitmq
+    restart: on-failure
 
   tax-service:
     image: openjdk:21-jdk-slim
@@ -68,11 +71,12 @@ services:
       - ./tax-service:/app
     ports:
       - "8082:8082"
-    command: java -jar tax-service.jar
+    command: java -jar target/tax-service-0.0.1-SNAPSHOT.jar
     networks:
       - servicodevendas-network
     depends_on:
       - eureka-server
+    restart: on-failure
 
   sales-registry-service:
     image: openjdk:21-jdk-slim
@@ -82,7 +86,7 @@ services:
       - ./sales-registry-service:/app
     ports:
       - "8083:8083"
-    command: java -jar sales-registry-service.jar
+    command: java -jar target/sales-registry-service-0.0.1-SNAPSHOT.jar
     networks:
       - servicodevendas-network
     env_file:
@@ -90,6 +94,7 @@ services:
     depends_on:
       - eureka-server
       - rabbitmq
+    restart: on-failure
 
 volumes:
   rabbitmq_data:
